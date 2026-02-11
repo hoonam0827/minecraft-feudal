@@ -1,0 +1,15 @@
+name: Feudal
+version: 1.0.0
+main: com.example.feudal.FeudalPlugin
+api-version: "1.21"
+
+depend:
+  - Citizens
+
+commands:
+  f:
+    description: Feudal commands
+
+permissions:
+  feudal.admin:
+    default: op

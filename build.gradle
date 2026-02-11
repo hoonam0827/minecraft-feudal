@@ -1,0 +1,37 @@
+plugins {
+    id 'java'
+}
+
+group = 'com.example'
+version = '1.0.0'
+
+repositories {
+    mavenCentral()
+
+    // Paper API
+    maven { url = 'https://repo.papermc.io/repository/maven-public/' }
+
+    // Citizens
+    maven { url = 'https://repo.citizensnpcs.co/' }
+
+    // libby-bukkit 1.1.5 위치 (필수)
+    maven { url = 'https://repo.alessiodp.com/releases/' }
+}
+
+dependencies {
+    // 서버가 1.21.11이어도 플러그인 API는 1.21.1로 개발하는 게 정상
+    compileOnly "io.papermc.paper:paper-api:1.21.1-R0.1-SNAPSHOT"
+
+    // Citizens
+    compileOnly "net.citizensnpcs:citizens-main:2.0.30-SNAPSHOT"
+}
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(21)
+    }
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+}
