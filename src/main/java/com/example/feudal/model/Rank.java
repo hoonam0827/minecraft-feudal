@@ -9,7 +9,6 @@ public enum Rank {
     KNIGHT,      // 기사
     PEASANT;     // 평민
 
-    // 승급: PEASANT -> ... -> KING
     public static Rank promote(Rank cur) {
         if (cur == null) return PEASANT;
         return switch (cur) {
@@ -23,7 +22,6 @@ public enum Rank {
         };
     }
 
-    // 강등: KING -> ... -> PEASANT
     public static Rank demote(Rank cur) {
         if (cur == null) return PEASANT;
         return switch (cur) {
@@ -37,7 +35,6 @@ public enum Rank {
         };
     }
 
-    // 보기 좋은 표시(선택)
     public String displayNameKo() {
         return switch (this) {
             case KING -> "왕";

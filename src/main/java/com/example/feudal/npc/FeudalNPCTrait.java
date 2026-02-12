@@ -7,24 +7,36 @@ public class FeudalNPCTrait extends Trait {
 
     @Persist private String role;
     @Persist private Integer familyId;
+
+    // TAX
     @Persist private Integer taxAmount = 0;
-    @Persist private Long intervalMs = 300_000L;
+    @Persist private Long intervalMs = 300_000L;   // 5분
     @Persist private Long nextCollectAtMs = 0L;
+
+    // FARM
+    @Persist private Long farmIntervalMs = 5_000L; // 5초
+    @Persist private Long nextFarmAtMs = 0L;
 
     public FeudalNPCTrait() {
         super("feudal");
     }
 
-    public void setRole(NPCRole role) { this.role = role.name(); }
+    // -------- Role --------
+    public void setRole(NPCRole role) {
+        this.role = (role == null ? null : role.name());
+    }
 
     public NPCRole getRole() {
         if (role == null) return null;
-        return NPCRole.valueOf(role);
+        try { return NPCRole.valueOf(role); }
+        catch (Exception e) { return null; }
     }
 
+    // -------- Family --------
     public Integer getFamilyId() { return familyId; }
     public void setFamilyId(Integer familyId) { this.familyId = familyId; }
 
+    // -------- TAX --------
     public int getTaxAmount() { return taxAmount == null ? 0 : taxAmount; }
     public void setTaxAmount(int taxAmount) { this.taxAmount = taxAmount; }
 
@@ -36,5 +48,16 @@ public class FeudalNPCTrait extends Trait {
 
     public void initNextIfNeeded(long nowMs) {
         if (getNextCollectAtMs() <= 0L) setNextCollectAtMs(nowMs + getIntervalMs());
+    }
+
+    // -------- FARM --------
+    public long getFarmIntervalMs() { return farmIntervalMs == null ? 5_000L : farmIntervalMs; }
+    public void setFarmIntervalMs(long ms) { this.farmIntervalMs = ms; }
+
+    public long getNextFarmAtMs() { return nextFarmAtMs == null ? 0L : nextFarmAtMs; }
+    public void setNextFarmAtMs(long ms) { this.nextFarmAtMs = ms; }
+
+    public void initFarmNextIfNeeded(long nowMs) {
+        if (getNextFarmAtMs() <= 0L) setNextFarmAtMs(nowMs);
     }
 }

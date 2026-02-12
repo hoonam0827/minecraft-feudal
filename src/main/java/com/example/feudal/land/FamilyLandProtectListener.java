@@ -22,7 +22,6 @@ public class FamilyLandProtectListener implements Listener {
         if (b == null || land == null) return false;
         if (!b.getWorld().getName().equals(land.world())) return false;
 
-        // ✅ 2D 반경(가문영지는 보통 x,z로 보는게 편함)
         int dx = b.getX() - land.x();
         int dz = b.getZ() - land.z();
         int r = land.radius();
@@ -44,7 +43,6 @@ public class FamilyLandProtectListener implements Listener {
             int r = land.radius();
 
             if ((dx * dx + dz * dz) <= (r * r)) {
-                // ✅ 어떤 영지 안이면, 그 영지의 가문과 같아야 통과
                 return myF.get() == land.familyId();
             }
         }

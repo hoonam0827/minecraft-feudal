@@ -76,7 +76,6 @@ public class TaxCollectorLoop {
                     continue;
                 }
 
-                // 다음 주기 예약
                 trait.setNextCollectAtMs(now + trait.getIntervalMs());
             }
         }, 20L, 20L); // 1초마다 체크

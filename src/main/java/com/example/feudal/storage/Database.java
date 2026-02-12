@@ -53,7 +53,7 @@ public class Database {
             """);
 
             // --------------------
-            // ✅ NPC 멤버(농노/직업/상태값)
+            // NPC 멤버(농노/직업/상태값)
             // --------------------
             st.executeUpdate("""
                 CREATE TABLE IF NOT EXISTS npc_members (
@@ -73,7 +73,7 @@ public class Database {
             """);
 
             // --------------------
-            // ✅ 가문 금고
+            // 가문 금고
             // --------------------
             st.executeUpdate("""
                 CREATE TABLE IF NOT EXISTS family_bank (
@@ -84,7 +84,7 @@ public class Database {
             """);
 
             // --------------------
-            // ✅ 세금 장부
+            // 세금 장부
             // --------------------
             st.executeUpdate("""
                 CREATE TABLE IF NOT EXISTS tax_ledger (
@@ -99,7 +99,7 @@ public class Database {
             """);
 
             // --------------------
-            // ✅ 미납 테이블
+            // 미납 테이블
             // --------------------
             st.executeUpdate("""
                 CREATE TABLE IF NOT EXISTS tax_due (
@@ -109,7 +109,7 @@ public class Database {
             """);
 
             // --------------------
-            // ✅ 영지(가문 땅)
+            // 영지(가문 땅)
             // --------------------
             st.executeUpdate("""
                 CREATE TABLE IF NOT EXISTS family_land (
@@ -125,7 +125,7 @@ public class Database {
             """);
 
             // --------------------
-            // ✅ 기존 DB(옛버전) 마이그레이션: 컬럼 없으면 추가
+            // 기존 DB(옛버전) 마이그레이션: 컬럼 없으면 추가
             // --------------------
             ensureColumnExists("members", "job",
                     "ALTER TABLE members ADD COLUMN job TEXT NOT NULL DEFAULT 'NONE'");
@@ -143,7 +143,6 @@ public class Database {
             ensureColumnExists("members", "serf_last_warn_at",
                     "ALTER TABLE members ADD COLUMN serf_last_warn_at INTEGER NOT NULL DEFAULT 0");
 
-            // npc_members는 새 테이블이라 보통 마이그레이션 불필요
         }
     }
 

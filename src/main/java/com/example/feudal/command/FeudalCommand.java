@@ -1,5 +1,6 @@
 package com.example.feudal.command;
 
+import com.example.feudal.merchant.MerchantService;
 import com.example.feudal.model.Job;
 import com.example.feudal.model.Rank;
 import com.example.feudal.npc.FeudalNPCTrait;
@@ -20,18 +21,19 @@ import java.util.Map;
 import java.util.UUID;
 
 public class FeudalCommand implements CommandExecutor {
+
     private final FeudalService service;
     private final TaxService taxService;
-
-    // ✅ 초대 저장(서버 재시작하면 초기화됨)
+    private final MerchantService merchant;
     private final Map<UUID, PendingInvite> invites = new HashMap<>();
     private static final long INVITE_EXPIRE_MS = 5 * 60 * 1000L; // 5분
 
     private record PendingInvite(int familyId, long expiresAtMs, String familyName) {}
 
-    public FeudalCommand(FeudalService service, TaxService taxService) {
+    public FeudalCommand(FeudalService service, TaxService taxService, MerchantService merchant) {
         this.service = service;
         this.taxService = taxService;
+        this.merchant = merchant;
     }
 
     @Override
@@ -76,7 +78,6 @@ public class FeudalCommand implements CommandExecutor {
                     p.sendMessage("§b" + service.getFamilyInfoById(fidOpt.get()));
                 }
 
-                // ✅ /f fid (내 familyId 빠르게 확인)
                 case "fid" -> {
                     var fidOpt = service.getFamilyIdOf(p.getUniqueId());
                     if (fidOpt.isEmpty()) {
@@ -88,9 +89,6 @@ public class FeudalCommand implements CommandExecutor {
                     p.sendMessage("§6[가문] §ffamilyId=§e" + familyId + " §7/ 이름=§a" + name);
                 }
 
-                // =========================
-                // ✅ 영지
-                // =========================
                 case "land" -> {
                     var fidOpt = service.getFamilyIdOf(p.getUniqueId());
                     if (fidOpt.isEmpty()) { p.sendMessage("§7가문이 있어야 영지를 쓸 수 있어!"); return true; }
@@ -121,7 +119,6 @@ public class FeudalCommand implements CommandExecutor {
                         return true;
                     }
 
-                    // 아래부터는 KING만
                     if (service.getRank(p.getUniqueId()) != Rank.KING) {
                         p.sendMessage("§c영지 설정은 KING만 가능!");
                         return true;
@@ -169,7 +166,6 @@ public class FeudalCommand implements CommandExecutor {
                     p.sendMessage("§c사용법: /f land info | set | radius | on|off");
                 }
 
-                // ✅ 승급/강등 (지금은 feudal.admin만)
                 case "promote", "demote" -> {
                     if (args.length < 2) { p.sendMessage("§c/f " + args[0] + " <닉>"); return true; }
                     if (!p.hasPermission("feudal.admin")) {
@@ -200,15 +196,13 @@ public class FeudalCommand implements CommandExecutor {
                     t.sendMessage("§e너의 계급이 변경됨: §f" + cur.name() + " §7-> §e" + next.name());
                 }
 
-                // ✅ 초대: KING만
                 case "invite" -> {
                     if (args.length < 2) { p.sendMessage("§c사용법: /f invite <닉>"); return true; }
 
                     var myF = service.getFamilyIdOf(p.getUniqueId());
                     if (myF.isEmpty()) { p.sendMessage("§c가문이 있어야 초대할 수 있어!"); return true; }
 
-                    Rank myRank = service.getRank(p.getUniqueId());
-                    if (myRank != Rank.KING) {
+                    if (service.getRank(p.getUniqueId()) != Rank.KING) {
                         p.sendMessage("§c초대는 KING만 가능!");
                         return true;
                     }
@@ -233,7 +227,6 @@ public class FeudalCommand implements CommandExecutor {
                     t.sendMessage("§7거절/무시: 5분 후 만료");
                 }
 
-                // ✅ 수락
                 case "accept" -> {
                     PendingInvite inv = invites.get(p.getUniqueId());
                     if (inv == null) { p.sendMessage("§7받은 초대가 없어."); return true; }
@@ -253,7 +246,6 @@ public class FeudalCommand implements CommandExecutor {
                     p.sendMessage("§a가입 완료! 가문: §6" + inv.familyName + " §7(기본: PEASANT/NONE)");
                 }
 
-                // ✅ 농노 시스템(플레이어)
                 case "serf" -> {
                     if (args.length < 2) {
                         p.sendMessage("§e/f serf me");
@@ -273,8 +265,7 @@ public class FeudalCommand implements CommandExecutor {
                             return true;
                         }
 
-                        Rank myRank = service.getRank(p.getUniqueId());
-                        if (myRank != Rank.KING) {
+                        if (service.getRank(p.getUniqueId()) != Rank.KING) {
                             p.sendMessage("§c농노 지정/해제는 KING만 가능!");
                             return true;
                         }
@@ -296,12 +287,8 @@ public class FeudalCommand implements CommandExecutor {
 
                         service.setSerf(t.getUniqueId(), on);
 
-                        if (on) {
-                            service.setJob(t.getUniqueId(), Job.FARMER);
-                            t.sendMessage("§c너는 농노가 되었어. 직업이 FARMER로 지정됨.");
-                        } else {
-                            t.sendMessage("§a너는 농노에서 해방되었어.");
-                        }
+                        if (on) t.sendMessage("§c너는 농노가 되었어. 직업은 자동으로 NONE(무직) 처리됨.");
+                        else t.sendMessage("§a너는 농노에서 해방되었어.");
 
                         p.sendMessage("§a처리 완료: " + t.getName() + " 농노=" + (on ? "ON" : "OFF"));
                         return true;
@@ -310,12 +297,11 @@ public class FeudalCommand implements CommandExecutor {
                     p.sendMessage("§c사용법: /f serf me 또는 /f serf set ...");
                 }
 
-                // ✅ 직업(플레이어)
                 case "job" -> {
                     if (args.length < 2) {
                         p.sendMessage("§e/f job me");
                         p.sendMessage("§e/f job set <닉> <job>  (KING만)");
-                        p.sendMessage("§7job 예시: NONE, FARMER, MINER, GUARD, MERCHANT, BUILDER");
+                        p.sendMessage("§7※ 농노는 직업을 가질 수 없어서 NONE만 가능");
                         return true;
                     }
 
@@ -328,8 +314,7 @@ public class FeudalCommand implements CommandExecutor {
                     if (args[1].equalsIgnoreCase("set")) {
                         if (args.length < 4) { p.sendMessage("§c사용법: /f job set <닉> <job>"); return true; }
 
-                        Rank myRank = service.getRank(p.getUniqueId());
-                        if (myRank != Rank.KING) { p.sendMessage("§c직업 부여는 KING만 가능!"); return true; }
+                        if (service.getRank(p.getUniqueId()) != Rank.KING) { p.sendMessage("§c직업 부여는 KING만 가능!"); return true; }
 
                         Player t = Bukkit.getPlayerExact(args[2]);
                         if (t == null) { p.sendMessage("§c그 유저는 온라인이 아님"); return true; }
@@ -344,24 +329,14 @@ public class FeudalCommand implements CommandExecutor {
                         String jobStr = args[3].toUpperCase();
                         if (!Job.isValid(jobStr)) {
                             p.sendMessage("§c없는 직업이야: " + args[3]);
-                            p.sendMessage("§7가능: NONE, FARMER, MINER, GUARD, MERCHANT, BUILDER, TAXPAYER");
                             return true;
                         }
 
                         Job newJob = Job.valueOf(jobStr);
 
-                        // ✅ 농노 직업 제한
-                        boolean targetSerf = service.isSerf(t.getUniqueId());
-                        if (targetSerf) {
-                            boolean allowed =
-                                    (newJob == Job.FARMER) ||
-                                            (newJob == Job.MINER)  ||
-                                            (newJob == Job.GUARD);
-
-                            if (!allowed) {
-                                p.sendMessage("§c농노는 직업이 제한돼! (허용: FARMER, MINER, GUARD)");
-                                return true;
-                            }
+                        if (service.isSerf(t.getUniqueId()) && newJob != Job.NONE) {
+                            p.sendMessage("§c농노는 직업을 가질 수 없어! (NONE만 가능)");
+                            return true;
                         }
 
                         service.setJob(t.getUniqueId(), newJob);
@@ -374,19 +349,14 @@ public class FeudalCommand implements CommandExecutor {
                     p.sendMessage("§c사용법: /f job me 또는 /f job set ...");
                 }
 
-                // ✅ 가문 금고 확인
                 case "bank" -> {
                     var fidOpt = service.getFamilyIdOf(p.getUniqueId());
-                    if (fidOpt.isEmpty()) {
-                        p.sendMessage("§7너는 가문이 없어(평민).");
-                        return true;
-                    }
+                    if (fidOpt.isEmpty()) { p.sendMessage("§7너는 가문이 없어(평민)."); return true; }
                     int familyId = fidOpt.get();
                     int bal = taxService.getBankBalance(familyId);
                     p.sendMessage("§6[가문 금고] §ffamilyId=" + familyId + " §e잔액: " + bal + " (에메랄드 기준)");
                 }
 
-                // ✅ 인출: KING만
                 case "withdraw" -> {
                     if (args.length < 2) { p.sendMessage("§c사용법: /f withdraw <amount>"); return true; }
 
@@ -396,14 +366,10 @@ public class FeudalCommand implements CommandExecutor {
                     if (amount <= 0) { p.sendMessage("§c1 이상만 가능"); return true; }
 
                     var fidOpt = service.getFamilyIdOf(p.getUniqueId());
-                    if (fidOpt.isEmpty()) {
-                        p.sendMessage("§7너는 가문이 없어(평민).");
-                        return true;
-                    }
+                    if (fidOpt.isEmpty()) { p.sendMessage("§7너는 가문이 없어(평민)."); return true; }
                     int familyId = fidOpt.get();
 
-                    Rank r = service.getRank(p.getUniqueId());
-                    if (r != Rank.KING) {
+                    if (service.getRank(p.getUniqueId()) != Rank.KING) {
                         p.sendMessage("§c인출은 KING만 가능!");
                         return true;
                     }
@@ -419,7 +385,6 @@ public class FeudalCommand implements CommandExecutor {
                     p.sendMessage("§a가문 금고에서 §e" + amount + "§a 에메랄드를 인출했어!");
                 }
 
-                // ✅ NPC 관련
                 case "npc" -> {
                     if (args.length < 2) {
                         p.sendMessage("§e/f npc role <npcId> <role>");
@@ -428,16 +393,11 @@ public class FeudalCommand implements CommandExecutor {
                         p.sendMessage("§e/f npc serf <npcId> on|off         (KING만)");
                         p.sendMessage("§e/f npc job <npcId> <job>           (KING만)");
                         p.sendMessage("§e/f npc info <npcId>");
+                        p.sendMessage("§e/f npc shop <npcId>");
+                        p.sendMessage("§e/f npc shopedit <npcId>            (KING만)  ※ SHIFT+우클릭=가격설정");
                         return true;
                     }
 
-                    // 공통: npcId 파싱 헬퍼
-                    java.util.function.Function<String, Integer> parseNpcId = (s) -> {
-                        try { return Integer.parseInt(s); }
-                        catch (NumberFormatException e) { return null; }
-                    };
-
-                    // ✅ /f npc info <npcId>
                     if (args[1].equalsIgnoreCase("info")) {
                         if (args.length < 3) { p.sendMessage("§c사용법: /f npc info <npcId>"); return true; }
 
@@ -449,100 +409,58 @@ public class FeudalCommand implements CommandExecutor {
                         if (npc == null) { p.sendMessage("§cNPC 없음. ID: " + npcId); return true; }
 
                         var fidOpt = service.getNpcFamilyId(npcId);
-                        String familyStr;
-                        if (fidOpt.isEmpty()) familyStr = "§7(무소속)";
-                        else familyStr = "§efamilyId=" + fidOpt.get() + " §7/ 이름=§a" + service.getFamilyNameById(fidOpt.get());
+                        String familyStr = fidOpt.isEmpty()
+                                ? "§7(무소속)"
+                                : "§efamilyId=" + fidOpt.get() + " §7/ 이름=§a" + service.getFamilyNameById(fidOpt.get());
 
                         boolean serf = service.isNpcSerf(npcId);
                         Job job = service.getNpcJob(npcId);
 
+                        FeudalNPCTrait trait = npc.getOrAddTrait(FeudalNPCTrait.class);
+                        String roleStr = (trait.getRole() == null ? "NONE" : trait.getRole().name());
+
                         p.sendMessage("§6[NPC INFO] §f#" + npcId + " §7(" + npc.getName() + ")");
                         p.sendMessage("§b가문: §f" + familyStr);
                         p.sendMessage("§b농노: " + (serf ? "§cON" : "§aOFF"));
-                        p.sendMessage("§b직업: §f" + job.name());
+                        p.sendMessage("§b직업(DB): §f" + job.name());
+                        p.sendMessage("§b역할(Trait): §f" + roleStr);
                         return true;
                     }
 
-                    // /f npc role
-                    if (args[1].equalsIgnoreCase("role")) {
-                        if (args.length < 4) {
-                            p.sendMessage("§c사용법: /f npc role <npcId> <role>");
-                            p.sendMessage("§7role: TAX_COLLECTOR, FARMER, GUARD, MINER");
-                            return true;
-                        }
+                    if (args[1].equalsIgnoreCase("shop")) {
+                        if (args.length < 3) { p.sendMessage("§c사용법: /f npc shop <npcId>"); return true; }
+                        int npcId;
+                        try { npcId = Integer.parseInt(args[2]); }
+                        catch (Exception e) { p.sendMessage("§c<npcId>는 숫자!"); return true; }
 
-                        Integer npcId = parseNpcId.apply(args[2]);
-                        if (npcId == null) { p.sendMessage("§c<npcId> 는 숫자!"); return true; }
-
-                        NPCRole role;
-                        try { role = NPCRole.valueOf(args[3].toUpperCase()); }
-                        catch (IllegalArgumentException e) {
-                            p.sendMessage("§c없는 역할: " + args[3]);
-                            p.sendMessage("§7가능: TAX_COLLECTOR, FARMER, GUARD, MINER");
-                            return true;
-                        }
-
-                        NPC npc = CitizensAPI.getNPCRegistry().getById(npcId);
-                        if (npc == null) { p.sendMessage("§cNPC 없음. ID: " + npcId); return true; }
-
-                        FeudalNPCTrait trait = npc.getOrAddTrait(FeudalNPCTrait.class);
-                        trait.setRole(role);
-                        p.sendMessage("§aNPC #" + npcId + " 역할 설정 완료: §e" + role);
+                        merchant.openShop(p, npcId);
                         return true;
                     }
 
-                    // /f npc tax
-                    if (args[1].equalsIgnoreCase("tax")) {
-                        if (args.length < 6) {
-                            p.sendMessage("§c사용법: /f npc tax <npcId> <familyId> <amount> <intervalSec>");
-                            return true;
-                        }
-
-                        int npcId, familyId, amount, intervalSec;
-                        try {
-                            npcId = Integer.parseInt(args[2]);
-                            familyId = Integer.parseInt(args[3]);
-                            amount = Integer.parseInt(args[4]);
-                            intervalSec = Integer.parseInt(args[5]);
-                        } catch (NumberFormatException e) {
-                            p.sendMessage("§c숫자 자리(npcId/familyId/amount/intervalSec) 중에 숫자가 아닌 게 있어!");
-                            return true;
-                        }
-
-                        if (amount <= 0) { p.sendMessage("§camount는 1 이상!"); return true; }
-                        if (intervalSec < 5) { p.sendMessage("§cintervalSec는 최소 5초 이상 추천!"); return true; }
-
-                        NPC npc = CitizensAPI.getNPCRegistry().getById(npcId);
-                        if (npc == null) { p.sendMessage("§cNPC 없음. ID: " + npcId); return true; }
-
-                        FeudalNPCTrait trait = npc.getOrAddTrait(FeudalNPCTrait.class);
-
-                        if (trait.getRole() != NPCRole.TAX_COLLECTOR) {
-                            p.sendMessage("§e경고: 이 NPC 역할이 TAX_COLLECTOR가 아님. 그래도 세팅은 저장함.");
-                            p.sendMessage("§7원하면 먼저: /f npc role " + npcId + " TAX_COLLECTOR");
-                        }
-
-                        trait.setFamilyId(familyId);
-                        trait.setTaxAmount(amount);
-                        trait.setIntervalMs(intervalSec * 1000L);
-
-                        long now = System.currentTimeMillis();
-                        trait.setNextCollectAtMs(now + trait.getIntervalMs());
-
-                        p.sendMessage("§a징세관 세팅 완료!");
-                        p.sendMessage("§7NPC #" + npcId + " / familyId=" + familyId
-                                + " / amount=" + amount + " emerald / interval=" + intervalSec + "s");
-                        return true;
-                    }
-
-                    // /f npc family
-                    if (args[1].equalsIgnoreCase("family")) {
-                        if (args.length < 4) { p.sendMessage("§c사용법: /f npc family <npcId> <familyId>"); return true; }
+                    if (args[1].equalsIgnoreCase("shopedit")) {
+                        if (args.length < 3) { p.sendMessage("§c사용법: /f npc shopedit <npcId>"); return true; }
 
                         if (service.getRank(p.getUniqueId()) != Rank.KING) {
-                            p.sendMessage("§cNPC 가문 지정은 KING만 가능!");
+                            p.sendMessage("§c상점 편집은 KING만 가능!");
                             return true;
                         }
+
+                        int npcId;
+                        try { npcId = Integer.parseInt(args[2]); }
+                        catch (Exception e) { p.sendMessage("§c<npcId>는 숫자!"); return true; }
+
+                        merchant.openEditor(p, npcId);
+                        return true;
+                    }
+
+                    if (service.getRank(p.getUniqueId()) != Rank.KING) {
+                        p.sendMessage("§c이 명령은 KING만 가능!");
+                        return true;
+                    }
+
+                    // /f npc family <npcId> <familyId>
+                    if (args[1].equalsIgnoreCase("family")) {
+                        if (args.length < 4) { p.sendMessage("§c사용법: /f npc family <npcId> <familyId>"); return true; }
 
                         int npcId, familyId;
                         try {
@@ -561,14 +479,37 @@ public class FeudalCommand implements CommandExecutor {
                         return true;
                     }
 
-                    // /f npc serf
-                    if (args[1].equalsIgnoreCase("serf")) {
-                        if (args.length < 4) { p.sendMessage("§c사용법: /f npc serf <npcId> on|off"); return true; }
-
-                        if (service.getRank(p.getUniqueId()) != Rank.KING) {
-                            p.sendMessage("§cNPC 농노 지정은 KING만 가능!");
+                    // /f npc role <npcId> <role>
+                    if (args[1].equalsIgnoreCase("role")) {
+                        if (args.length < 4) {
+                            p.sendMessage("§c사용법: /f npc role <npcId> <role>");
+                            p.sendMessage("§7role: TAX_COLLECTOR, FARMER, GUARD, MINER, MERCHANT");
                             return true;
                         }
+
+                        int npcId;
+                        try { npcId = Integer.parseInt(args[2]); }
+                        catch (Exception e) { p.sendMessage("§c<npcId>는 숫자!"); return true; }
+
+                        NPCRole role;
+                        try { role = NPCRole.valueOf(args[3].toUpperCase()); }
+                        catch (Exception e) { p.sendMessage("§c없는 역할: " + args[3]); return true; }
+
+                        NPC npc = CitizensAPI.getNPCRegistry().getById(npcId);
+                        if (npc == null) { p.sendMessage("§cNPC 없음. ID: " + npcId); return true; }
+
+                        FeudalNPCTrait trait = npc.getOrAddTrait(FeudalNPCTrait.class);
+                        trait.setRole(role);
+
+                        if (role == NPCRole.FARMER) trait.setNextFarmAtMs(System.currentTimeMillis());
+
+                        p.sendMessage("§aNPC #" + npcId + " 역할 설정 완료: §e" + role.name());
+                        return true;
+                    }
+
+                    // /f npc serf <npcId> on|off
+                    if (args[1].equalsIgnoreCase("serf")) {
+                        if (args.length < 4) { p.sendMessage("§c사용법: /f npc serf <npcId> on|off"); return true; }
 
                         int npcId;
                         try { npcId = Integer.parseInt(args[2]); }
@@ -590,22 +531,23 @@ public class FeudalCommand implements CommandExecutor {
 
                         service.setNpcSerf(npcId, on);
 
-                        if (on) {
-                            service.setNpcJob(npcId, Job.FARMER);
-                        }
+                        FeudalNPCTrait trait = npc.getOrAddTrait(FeudalNPCTrait.class);
 
-                        p.sendMessage("§aNPC 농노 설정 완료: #" + npcId + " -> " + (on ? "§cON" : "§aOFF"));
+                        if (on) {
+                            service.setNpcJob(npcId, Job.NONE);
+                            trait.setRole(NPCRole.FARMER);
+                            trait.setNextFarmAtMs(System.currentTimeMillis());
+                            p.sendMessage("§aNPC 농노 설정 완료: #" + npcId + " -> §cON (역할=FARMER / 직업=NONE)");
+                        } else {
+                            if (trait.getRole() == NPCRole.FARMER) trait.setRole(null);
+                            p.sendMessage("§aNPC 농노 설정 완료: #" + npcId + " -> §aOFF");
+                        }
                         return true;
                     }
 
-                    // /f npc job
+                    // /f npc job <npcId> <job>
                     if (args[1].equalsIgnoreCase("job")) {
                         if (args.length < 4) { p.sendMessage("§c사용법: /f npc job <npcId> <job>"); return true; }
-
-                        if (service.getRank(p.getUniqueId()) != Rank.KING) {
-                            p.sendMessage("§cNPC 직업 설정은 KING만 가능!");
-                            return true;
-                        }
 
                         int npcId;
                         try { npcId = Integer.parseInt(args[2]); }
@@ -617,22 +559,14 @@ public class FeudalCommand implements CommandExecutor {
                         String jobStr = args[3].toUpperCase();
                         if (!Job.isValid(jobStr)) {
                             p.sendMessage("§c없는 직업이야: " + args[3]);
-                            p.sendMessage("§7가능: NONE, FARMER, MINER, GUARD, MERCHANT, BUILDER, TAXPAYER");
                             return true;
                         }
 
                         Job newJob = Job.valueOf(jobStr);
 
-                        boolean npcSerf = service.isNpcSerf(npcId);
-                        if (npcSerf) {
-                            boolean allowed =
-                                    (newJob == Job.FARMER) ||
-                                            (newJob == Job.MINER)  ||
-                                            (newJob == Job.GUARD);
-                            if (!allowed) {
-                                p.sendMessage("§c농노 NPC는 직업이 제한돼! (허용: FARMER, MINER, GUARD)");
-                                return true;
-                            }
+                        if (service.isNpcSerf(npcId) && newJob != Job.NONE) {
+                            p.sendMessage("§c농노 NPC는 직업을 가질 수 없어! (NONE만 가능)");
+                            return true;
                         }
 
                         service.setNpcJob(npcId, newJob);
@@ -640,7 +574,7 @@ public class FeudalCommand implements CommandExecutor {
                         return true;
                     }
 
-                    p.sendMessage("§c사용법: /f npc role|tax|family|serf|job|info ...");
+                    p.sendMessage("§c사용법: /f npc info|shop|shopedit|family|role|serf|job ...");
                 }
 
                 default -> help(p);
@@ -649,6 +583,7 @@ public class FeudalCommand implements CommandExecutor {
             p.sendMessage("§cDB 오류: " + e.getMessage());
         } catch (Exception e) {
             p.sendMessage("§c오류: " + e.getMessage());
+            e.printStackTrace();
         }
 
         return true;
@@ -665,15 +600,17 @@ public class FeudalCommand implements CommandExecutor {
         p.sendMessage("§e/f serf set <닉> on|off (KING만)");
         p.sendMessage("§e/f job me");
         p.sendMessage("§e/f job set <닉> <job> (KING만)");
+        p.sendMessage("§7※ 농노는 직업 NONE만 가능");
         p.sendMessage("§e/f bank");
         p.sendMessage("§e/f withdraw <amount> (KING만)");
         p.sendMessage("§e/f promote <닉>  (admin)");
         p.sendMessage("§e/f demote <닉>   (admin)");
-        p.sendMessage("§e/f npc role <npcId> <role>");
-        p.sendMessage("§e/f npc tax <npcId> <familyId> <amount> <intervalSec>");
+        p.sendMessage("§e/f npc info <npcId>");
+        p.sendMessage("§e/f npc shop <npcId>");
+        p.sendMessage("§e/f npc shopedit <npcId> (KING만)  ※ SHIFT+우클릭=가격설정");
         p.sendMessage("§e/f npc family <npcId> <familyId> (KING만)");
+        p.sendMessage("§e/f npc role <npcId> <role> (KING만)");
         p.sendMessage("§e/f npc serf <npcId> on|off (KING만)");
         p.sendMessage("§e/f npc job <npcId> <job> (KING만)");
-        p.sendMessage("§e/f npc info <npcId>");
     }
 }
